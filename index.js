@@ -12,13 +12,14 @@ function Texture(gl) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 }
-Texture.prototype.bind = function(n, program, name) {
+
+Texture.prototype.bind = function (n, program, name) {
     var gl = this.gl;
     gl.activeTexture([gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2][n]);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.uniform1i(gl.getUniformLocation(program, name), n);
 }
-Texture.prototype.fill = function(width, height, data) {
+Texture.prototype.fill = function (width, height, data) {
     var gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, width, height, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
@@ -35,7 +36,7 @@ function render(canvas, videoFrame, checkFps) {
         videoFrame.subarray(videoFrame.vOffset, videoFrame.length));
 }
 
-var renderFallback = function(canvas, videoFrame) {
+var renderFallback = function (canvas, videoFrame) {
     var buf = canvas.img.data;
     var width = videoFrame.width;
     var height = videoFrame.height;
@@ -47,7 +48,7 @@ var renderFallback = function(canvas, videoFrame) {
             buf[o + 2] = videoFrame[o + 0];
             buf[o + 3] = videoFrame[o + 3];
         }
-    };
+    }
     canvas.ctx.putImageData(canvas.img, 0, 0);
 }
 
@@ -146,9 +147,9 @@ function frameSetup(canvas, width, height, pixelFormat) {
 }
 
 module.exports = {
-    bind: function(canvas, vlc, options) {
+    bind: function (canvas, vlc, options) {
         if (!options) options = {};
-        var drawLoop, newFrame;
+        var drawLoop, newFrame, frameWidth, frameHeight, frameVOffset, frameUOffset;
 
         if (typeof canvas === 'string')
             canvas = window.document.querySelector(canvas);
@@ -156,12 +157,18 @@ module.exports = {
         setupCanvas(canvas, vlc, options);
 
         vlc.onFrameSetup =
-            function(width, height, pixelFormat) {
+            function (width, height, uOffset, vOffset, pixelFormat, array) {
+                // console.log('frame setup', width, height, uOffset, vOffset, pixelFormat, array);
+                frameWidth = width;
+                frameHeight = height;
+                frameUOffset = uOffset;
+                frameVOffset = vOffset;
+
                 frameSetup(canvas, width, height, pixelFormat);
                 typeof options.onFrameSetup === "function" && options.onFrameSetup(width, height, pixelFormat);
 
-                var draw = function() {
-                    drawLoop = window.requestAnimationFrame(function() {
+                var draw = function () {
+                    drawLoop = window.requestAnimationFrame(function () {
                         var gl = canvas.gl;
                         if (gl && newFrame) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
                         newFrame = false;
@@ -171,49 +178,55 @@ module.exports = {
                 draw();
 
                 canvas.addEventListener("webglcontextlost",
-                    function(event) {
+                    function (event) {
                         event.preventDefault();
                         console.log("webgl context lost");
                     }, false);
 
                 canvas.addEventListener("webglcontextrestored",
-                    function(w, h, p) {
-                        return function(event) {
+                    function (w, h, p) {
+                        return function (event) {
                             setupCanvas(canvas, vlc, options);
                             frameSetup(canvas, w, h, p);
                             console.log("webgl context restored");
                         }
                     }(width, height, pixelFormat), false);
 
-        };
+            };
 
         var that = this;
         vlc.onFrameReady =
-            function(videoFrame) {
+            function (videoFrame) {
+                videoFrame.width = frameWidth;
+                videoFrame.height = frameHeight;
+                videoFrame.uOffset = frameUOffset;
+                videoFrame.vOffset = frameVOffset;
+                // console.log('frame ready', frameUOffset, frameVOffset);
+
                 (canvas.gl ? render : renderFallback)(canvas, videoFrame, that.checkFps);
                 newFrame = true;
                 typeof options.onFrameReady === "function" && options.onFrameReady(videoFrame);
-        };
+            };
         vlc.onFrameCleanup =
-            function() {
+            function () {
                 if (drawLoop) {
                     window.cancelAnimationFrame(drawLoop);
                     drawLoop = null;
                 }
                 typeof options.onFrameCleanup === "function" && options.onFrameCleanup();
-        };
+            };
     },
     checkFps: false,
-    getFps: function(cb) {
-      this.checkFps = true;
-      var that = this;
-      setTimeout(function() {
-          that.checkFps = false;
-          cb(fpsCount);
-          fpsCount = 0;
-        },1000);
+    getFps: function (cb) {
+        this.checkFps = true;
+        var that = this;
+        setTimeout(function () {
+            that.checkFps = false;
+            cb(fpsCount);
+            fpsCount = 0;
+        }, 1000);
     },
-    clear: function(canvas) {
+    clear: function (canvas) {
         var gl = canvas.gl,
             arr1 = new Uint8Array(1),
             arr2 = new Uint8Array(1);

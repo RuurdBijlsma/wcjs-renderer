@@ -1,4 +1,4 @@
-var fpsCount = 0;
+let fpsCount = 0;
 
 
 function Texture(gl) {
@@ -14,35 +14,35 @@ function Texture(gl) {
 }
 
 Texture.prototype.bind = function (n, program, name) {
-    var gl = this.gl;
+    const gl = this.gl;
     gl.activeTexture([gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2][n]);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.uniform1i(gl.getUniformLocation(program, name), n);
 }
 Texture.prototype.fill = function (width, height, data) {
-    var gl = this.gl;
+    const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, width, height, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
 }
 
-function render(canvas, videoFrame, checkFps) {
+function render(canvas, videoFrame, vlcInput, checkFps) {
     if (checkFps) fpsCount++;
-    var gl = canvas.gl;
-    gl.y.fill(videoFrame.width, videoFrame.height,
-        videoFrame.subarray(0, videoFrame.uOffset));
-    gl.u.fill(videoFrame.width >> 1, videoFrame.height >> 1,
-        videoFrame.subarray(videoFrame.uOffset, videoFrame.vOffset));
-    gl.v.fill(videoFrame.width >> 1, videoFrame.height >> 1,
-        videoFrame.subarray(videoFrame.vOffset, videoFrame.length));
+    const gl = canvas.gl;
+    gl.y.fill(vlcInput.width, vlcInput.height,
+        videoFrame.subarray(0, vlcInput.uOffset));
+    gl.u.fill(vlcInput.width >> 1, vlcInput.height >> 1,
+        videoFrame.subarray(vlcInput.uOffset, vlcInput.vOffset));
+    gl.v.fill(vlcInput.width >> 1, vlcInput.height >> 1,
+        videoFrame.subarray(vlcInput.vOffset, videoFrame.length));
 }
 
-var renderFallback = function (canvas, videoFrame) {
-    var buf = canvas.img.data;
-    var width = videoFrame.width;
-    var height = videoFrame.height;
-    for (var i = 0; i < height; ++i) {
-        for (var j = 0; j < width; ++j) {
-            var o = (j + (width * i)) * 4;
+const renderFallback = (canvas, videoFrame, vlcInput) => {
+    const buf = canvas.img.data;
+    const width = vlcInput.width;
+    const height = vlcInput.height;
+    for (let i = 0; i < height; ++i) {
+        for (let j = 0; j < width; ++j) {
+            const o = (j + (width * i)) * 4;
             buf[o + 0] = videoFrame[o + 2];
             buf[o + 1] = videoFrame[o + 1];
             buf[o + 2] = videoFrame[o + 0];
@@ -50,26 +50,26 @@ var renderFallback = function (canvas, videoFrame) {
         }
     }
     canvas.ctx.putImageData(canvas.img, 0, 0);
-}
+};
 
-function setupCanvas(canvas, vlc, options) {
+function setupCanvas(canvas, vlcPlayer, options) {
     if (!options.fallbackRenderer)
         canvas.gl = canvas.getContext("webgl", {
             preserveDrawingBuffer: Boolean(options.preserveDrawingBuffer)
         });
-    var gl = canvas.gl;
+    const gl = canvas.gl;
     if (!gl || options.fallbackRenderer) {
         console.log(options.fallbackRenderer ? "Fallback renderer forced, not using WebGL" : "Unable to initialize WebGL, falling back to canvas rendering");
-        vlc.pixelFormat = vlc.RV32;
+        vlcPlayer.pixelFormat = 'RV32';
         canvas.ctx = canvas.getContext("2d");
         delete canvas.gl; // in case of fallback renderer
         return;
     }
 
-    vlc.pixelFormat = vlc.I420;
+    vlcPlayer.pixelFormat = 'I420';
     canvas.I420Program = gl.createProgram();
-    var program = canvas.I420Program;
-    var vertexShaderSource = [
+    const program = canvas.I420Program;
+    const vertexShaderSource = [
         "attribute highp vec4 aVertexPosition;",
         "attribute vec2 aTextureCoord;",
         "varying highp vec2 vTextureCoord;",
@@ -78,10 +78,10 @@ function setupCanvas(canvas, vlc, options) {
         " vTextureCoord = aTextureCoord;",
         "}"
     ].join("\n");
-    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
     gl.shaderSource(vertexShader, vertexShaderSource);
     gl.compileShader(vertexShader);
-    var fragmentShaderSource = [
+    const fragmentShaderSource = [
         "precision highp float;",
         "varying lowp vec2 vTextureCoord;",
         "uniform sampler2D YTexture;",
@@ -99,7 +99,7 @@ function setupCanvas(canvas, vlc, options) {
         "}"
     ].join("\n");
 
-    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fragmentShader, fragmentShaderSource);
     gl.compileShader(fragmentShader);
     gl.attachShader(program, vertexShader);
@@ -109,18 +109,18 @@ function setupCanvas(canvas, vlc, options) {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
         console.log("Shader link failed.");
     }
-    var vertexPositionAttribute = gl.getAttribLocation(program, "aVertexPosition");
+    const vertexPositionAttribute = gl.getAttribLocation(program, "aVertexPosition");
     gl.enableVertexAttribArray(vertexPositionAttribute);
-    var textureCoordAttribute = gl.getAttribLocation(program, "aTextureCoord");
+    const textureCoordAttribute = gl.getAttribLocation(program, "aTextureCoord");
     gl.enableVertexAttribArray(textureCoordAttribute);
 
-    var verticesBuffer = gl.createBuffer();
+    const verticesBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, verticesBuffer);
     gl.bufferData(gl.ARRAY_BUFFER,
         new Float32Array([1.0, 1.0, 0.0, -1.0, 1.0, 0.0, 1.0, -1.0, 0.0, -1.0, -1.0, 0.0]),
         gl.STATIC_DRAW);
     gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
-    var texCoordBuffer = gl.createBuffer();
+    const texCoordBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
     gl.bufferData(gl.ARRAY_BUFFER,
         new Float32Array([1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0]),
@@ -135,8 +135,8 @@ function setupCanvas(canvas, vlc, options) {
     gl.v.bind(2, program, "VTexture");
 }
 
-function frameSetup(canvas, width, height, pixelFormat) {
-    var gl = canvas.gl;
+function frameSetup(canvas, width, height) {
+    const gl = canvas.gl;
     canvas.width = width;
     canvas.height = height;
     if (!gl) {
@@ -147,87 +147,75 @@ function frameSetup(canvas, width, height, pixelFormat) {
 }
 
 module.exports = {
-    bind: function (canvas, vlc, options) {
+    bind(canvas, vlcPlayer, options) {
         if (!options) options = {};
-        var drawLoop, newFrame, frameWidth, frameHeight, frameVOffset, frameUOffset;
+        let drawLoop, newFrame, frameWidth, frameHeight, frameVOffset, frameUOffset;
 
         if (typeof canvas === 'string')
             canvas = window.document.querySelector(canvas);
 
-        setupCanvas(canvas, vlc, options);
+        setupCanvas(canvas, vlcPlayer, options);
 
-        vlc.onFrameSetup =
-            function (width, height, uOffset, vOffset, pixelFormat, array) {
-                // console.log('frame setup', width, height, uOffset, vOffset, pixelFormat, array);
-                frameWidth = width;
-                frameHeight = height;
-                frameUOffset = uOffset;
-                frameVOffset = vOffset;
+        vlcPlayer.on('frameSetup', (width, height, uOffset, vOffset, pixelFormat) => {
+            frameSetup(canvas, width, height, pixelFormat);
+            if (typeof options.onFrameSetup === "function")
+                options.onFrameSetup(width, height, pixelFormat);
 
-                frameSetup(canvas, width, height, pixelFormat);
-                typeof options.onFrameSetup === "function" && options.onFrameSetup(width, height, pixelFormat);
-
-                var draw = function () {
-                    drawLoop = window.requestAnimationFrame(function () {
-                        var gl = canvas.gl;
-                        if (gl && newFrame) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-                        newFrame = false;
-                        draw();
-                    });
-                };
-                draw();
-
-                canvas.addEventListener("webglcontextlost",
-                    function (event) {
-                        event.preventDefault();
-                        console.log("webgl context lost");
-                    }, false);
-
-                canvas.addEventListener("webglcontextrestored",
-                    function (w, h, p) {
-                        return function (event) {
-                            setupCanvas(canvas, vlc, options);
-                            frameSetup(canvas, w, h, p);
-                            console.log("webgl context restored");
-                        }
-                    }(width, height, pixelFormat), false);
-
+            const draw = () => {
+                drawLoop = window.requestAnimationFrame(() => {
+                    const gl = canvas.gl;
+                    if (gl && newFrame) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                    newFrame = false;
+                    draw();
+                });
             };
+            draw();
 
-        var that = this;
-        vlc.onFrameReady =
-            function (videoFrame) {
-                videoFrame.width = frameWidth;
-                videoFrame.height = frameHeight;
-                videoFrame.uOffset = frameUOffset;
-                videoFrame.vOffset = frameVOffset;
-                // console.log('frame ready', frameUOffset, frameVOffset);
+            canvas.addEventListener("webglcontextlost",
+                event => {
+                    event.preventDefault();
+                    console.log("webgl context lost");
+                }, false);
 
-                (canvas.gl ? render : renderFallback)(canvas, videoFrame, that.checkFps);
-                newFrame = true;
-                typeof options.onFrameReady === "function" && options.onFrameReady(videoFrame);
-            };
-        vlc.onFrameCleanup =
-            function () {
-                if (drawLoop) {
-                    window.cancelAnimationFrame(drawLoop);
-                    drawLoop = null;
-                }
-                typeof options.onFrameCleanup === "function" && options.onFrameCleanup();
-            };
+            canvas.addEventListener("webglcontextrestored",
+                ((w, h, p) => () => {
+                    setupCanvas(canvas, vlcPlayer, options);
+                    frameSetup(canvas, w, h, p);
+                    console.log("webgl context restored");
+                })(width, height, pixelFormat), false);
+        });
+
+        vlcPlayer.on('frameReady', videoFrame => {
+            videoFrame.width = frameWidth;
+            videoFrame.height = frameHeight;
+            videoFrame.uOffset = frameUOffset;
+            videoFrame.vOffset = frameVOffset;
+
+            (canvas.gl ? render : renderFallback)(canvas, videoFrame, vlcPlayer.input, this.checkFps);
+            newFrame = true;
+            if (typeof options.onFrameReady === "function")
+                options.onFrameReady(videoFrame);
+        });
+        vlcPlayer.on('frameCleanup', () => {
+            if (drawLoop) {
+                window.cancelAnimationFrame(drawLoop);
+                drawLoop = null;
+            }
+            if (typeof options.onFrameCleanup === "function")
+                options.onFrameCleanup();
+        });
     },
     checkFps: false,
-    getFps: function (cb) {
+    getFps(cb, timeout = 1000) {
         this.checkFps = true;
-        var that = this;
-        setTimeout(function () {
-            that.checkFps = false;
+        setTimeout(() => {
+            this.checkFps = false;
             cb(fpsCount);
             fpsCount = 0;
-        }, 1000);
+        }, timeout);
     },
-    clear: function (canvas) {
-        var gl = canvas.gl,
+    clear(canvas) {
+        const gl = canvas.gl,
             arr1 = new Uint8Array(1),
             arr2 = new Uint8Array(1);
 

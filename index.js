@@ -149,7 +149,7 @@ function frameSetup(canvas, width, height) {
 module.exports = {
     bind(canvas, vlcPlayer, options) {
         if (!options) options = {};
-        let drawLoop, newFrame, frameWidth, frameHeight, frameVOffset, frameUOffset;
+        let drawLoop, newFrame;
 
         if (typeof canvas === 'string')
             canvas = window.document.querySelector(canvas);
@@ -186,11 +186,6 @@ module.exports = {
         });
 
         vlcPlayer.on('frameReady', videoFrame => {
-            videoFrame.width = frameWidth;
-            videoFrame.height = frameHeight;
-            videoFrame.uOffset = frameUOffset;
-            videoFrame.vOffset = frameVOffset;
-
             (canvas.gl ? render : renderFallback)(canvas, videoFrame, vlcPlayer.input, this.checkFps);
             newFrame = true;
             if (typeof options.onFrameReady === "function")

@@ -25,6 +25,10 @@ Texture.prototype.fill = function (width, height, data) {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, width, height, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
 }
 
+Texture.prototype.destroy = function () {
+    this.gl.deleteTexture(this.texture);
+}
+
 function render(canvas, videoFrame, vlcInput, checkFps) {
     if (checkFps) fpsCount++;
     const gl = canvas.gl;
@@ -149,11 +153,12 @@ function frameSetup(canvas, width, height) {
 module.exports = {
     bind(canvas, vlcPlayer, options) {
         if (!options) options = {};
-        let drawLoop, newFrame;
+        let newFrame;
 
         if (typeof canvas === 'string')
             canvas = window.document.querySelector(canvas);
 
+        this.gl = canvas.gl;
         setupCanvas(canvas, vlcPlayer, options);
 
         vlcPlayer.on('frameSetup', (width, height, uOffset, vOffset, pixelFormat) => {
@@ -162,7 +167,7 @@ module.exports = {
                 options.onFrameSetup(width, height, pixelFormat);
 
             const draw = () => {
-                drawLoop = window.requestAnimationFrame(() => {
+                this.drawLoop = window.requestAnimationFrame(() => {
                     const gl = canvas.gl;
                     if (gl && newFrame) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
                     newFrame = false;
@@ -192,9 +197,9 @@ module.exports = {
                 options.onFrameReady(videoFrame);
         });
         vlcPlayer.on('frameCleanup', () => {
-            if (drawLoop) {
-                window.cancelAnimationFrame(drawLoop);
-                drawLoop = null;
+            if (this.drawLoop) {
+                window.cancelAnimationFrame(this.drawLoop);
+                this.drawLoop = null;
             }
             if (typeof options.onFrameCleanup === "function")
                 options.onFrameCleanup();
@@ -222,5 +227,16 @@ module.exports = {
         gl.v.fill(1, 1, arr2);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    }
+    },
+    destroy() {
+        if (this.gl) {
+            if (this.gl.y)
+                this.gl.y.destroy();
+            if (this.gl.u)
+                this.gl.u.destroy();
+            if (this.gl.v)
+                this.gl.v.destroy();
+        }
+        window.cancelAnimationFrame(this.drawLoop);
+    },
 };
